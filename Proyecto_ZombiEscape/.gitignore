@@ -1,0 +1,60 @@
+
+# =========================
+# NETBEANS
+# =========================
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# =========================
+# ARCHIVOS COMPILADOS
+# =========================
+*.class
+*.jar
+*.war
+*.ear
+
+# =========================
+# ANT (NETBEANS)
+# =========================
+build/
+dist/
+
+# =========================
+# MAVEN
+# =========================
+target/
+
+# =========================
+# GRADLE
+# =========================
+.gradle/
+.gradle-user-home/
+!gradle/wrapper/gradle-wrapper.jar
+
+# =========================
+# ARCHIVOS TEMPORALES
+# =========================
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# =========================
+# ARCHIVOS DE IDE
+# =========================
+.idea/
+*.iml
+.vscode/
+
+# =========================
+# CONFIGURACIONES SENSIBLES
+# =========================
+.env
+.env.*
+!.env.example
+
