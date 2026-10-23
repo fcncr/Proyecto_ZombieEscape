@@ -191,7 +191,7 @@ S = Salida
 
 Para conocer las reglas completas de creacion de mapas se debe consultar el archivo:
 
-Manual_Creacion_Escenarios_ZombiEscape.txt
+ManualEscenarios.txt
 
 El servidor tambien dispone de una opcion grafica para importar nuevos archivos de escenarios.
 
@@ -314,7 +314,7 @@ El proyecto incluye:
 
 El manual de escenarios se encuentra en:
 
-Manual_Creacion_Escenarios_ZombiEscape.txt
+ManualEscenarios.txt
 
 ## Recomendacion antes de ejecutar
 
