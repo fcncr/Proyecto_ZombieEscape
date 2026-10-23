@@ -1,0 +1,460 @@
+ZOMBI ESCAPE
+---MANUAL DE USUARIO PARA LA CREACIÓN DE ESCENARIOS---
+
+________________________________________________________
+Curso: IC2101 - Programación Orientada a Objetos
+Estudiantes: 
+Fabián Cambronero Núñez
+Génesis Villegas Umaña
+Profesor: Diego Mora Rojas
+II Semestre 2026
+________________________________________________________
+
+1. INTRODUCCIÓN
+
+ZombiEscape utiliza archivos de texto para definir los escenarios del juego.
+
+Cada archivo representa un mapa mediante una matriz de caracteres. Gracias a este sistema, es posible modificar los escenarios existentes o agregar nuevos escenarios sin cambiar el código fuente del proyecto.
+
+El juego incluye escenarios base y permite agregar posteriormente escenarios adicionales, por ejemplo:
+
+escenario11.txt
+escenario12.txt
+escenario13.txt
+
+Los jugadores y los zombis no se escriben directamente dentro del archivo del escenario. El servidor se encarga de colocarlos automáticamente cuando inicia la partida.
+
+
+2. UBICACIÓN DE LOS ESCENARIOS
+
+Los archivos de los escenarios se encuentran en la carpeta:
+
+escenarios/
+
+Ejemplo:
+
+escenarios/
+  escenario01.txt
+  escenario02.txt
+  escenario03.txt
+  escenario04.txt
+  escenario05.txt
+  escenario06.txt
+  escenario07.txt
+  escenario08.txt
+  escenario09.txt
+  escenario10.txt
+
+Los escenarios se ordenan según el número de su nombre.
+
+
+3. FORMATO DEL ARCHIVO
+
+Cada escenario debe ser un archivo de texto plano con extensión .txt.
+
+El mapa se representa por medio de filas y columnas.
+
+Ejemplo:
+
+################
+#E.............#
+#..####........#
+#..#..#....H...#
+#..#..####.....#
+#..............#
+#....######....#
+#..............#
+#..........S...#
+################
+
+Cada carácter representa una casilla del mapa.
+
+No deben utilizarse espacios, tabulaciones ni caracteres adicionales dentro del mapa.
+
+
+4. SÍMBOLOS PERMITIDOS
+
+El sistema reconoce únicamente los siguientes símbolos:
+
+#  Pared u obstáculo.
+   No se puede atravesar y bloquea la visión de los zombis.
+
+.  Camino transitable.
+   Los supervivientes pueden desplazarse por esta casilla.
+
+E  Entrada.
+   Indica el punto de referencia donde comienzan los supervivientes.
+
+H  Escondite.
+   Cuando un superviviente entra en esta casilla queda oculto para los zombis.
+
+S  Salida.
+   Los supervivientes deben llegar a esta casilla para escapar del escenario.
+
+No deben utilizarse otros símbolos.
+
+Por ejemplo, no son válidos:
+
+Z
+P
+X
+@
+1
+-
+
+No se deben colocar manualmente símbolos para jugadores, zombis o francotiradores.
+
+
+5. REGLAS OBLIGATORIAS
+
+Para que un escenario sea aceptado por el juego debe cumplir todas las siguientes reglas.
+
+
+5.1 TODAS LAS FILAS DEBEN TENER EL MISMO TAMAÑO
+
+El escenario debe formar una matriz rectangular.
+
+Ejemplo válido:
+
+########
+#E.....#
+#..H...#
+#.....S#
+########
+
+Ejemplo inválido:
+
+########
+#E....#
+#..H...#
+#.....S#
+########
+
+En el ejemplo inválido una de las filas tiene menos columnas.
+
+
+5.2 DEBE EXISTIR EXACTAMENTE UNA ENTRADA
+
+El escenario debe contener una sola letra E.
+
+Correcto:
+
+#E.........#
+
+Incorrecto:
+
+#E.....E...#
+
+También es inválido un escenario que no tenga ninguna entrada.
+
+
+5.3 DEBE EXISTIR EXACTAMENTE UNA SALIDA
+
+El escenario debe contener una sola letra S.
+
+Correcto:
+
+#.........S#
+
+Incorrecto:
+
+#S.......S#
+
+También es inválido un escenario que no tenga salida.
+
+
+5.4 DEBE EXISTIR AL MENOS UN ESCONDITE
+
+Cada escenario debe contener como mínimo una letra H.
+
+Puede haber más de un escondite.
+
+Ejemplo:
+
+#....H......#
+#...........#
+#..H........#
+
+
+5.5 DEBEN EXISTIR AL MENOS 10 CASILLAS TRANSITABLES
+
+Las casillas transitables son todas aquellas que no son paredes.
+
+Son transitables:
+
+.
+E
+H
+S
+
+No es transitable:
+
+#
+
+El escenario debe tener suficiente espacio para permitir el movimiento de varios jugadores.
+
+
+5.6 DEBE EXISTIR UN CAMINO ENTRE LA ENTRADA Y LA SALIDA
+
+Un superviviente debe poder desplazarse desde E hasta S utilizando únicamente casillas transitables.
+
+Ejemplo válido:
+
+##########
+#E.......#
+#..####..#
+#.......S#
+##########
+
+Ejemplo inválido:
+
+##########
+#E.......#
+##########
+#.......S#
+##########
+
+El segundo escenario es inválido porque una pared completa impide llegar desde la entrada hasta la salida.
+
+
+5.7 SOLO SE PUEDEN UTILIZAR LOS SÍMBOLOS DEFINIDOS
+
+Los únicos caracteres permitidos son:
+
+#
+.
+E
+H
+S
+
+Cualquier otro carácter provoca que el escenario sea rechazado.
+
+También se deben evitar espacios al final de las líneas.
+
+
+6. RECOMENDACIONES PARA DISEÑAR UN BUEN ESCENARIO
+
+Aunque un mapa pueda ser válido técnicamente, se recomienda seguir estas reglas para que sea jugable:
+
+- Colocar la entrada y la salida suficientemente separadas.
+- Crear varios caminos y zonas abiertas.
+- Evitar pasillos excesivamente estrechos.
+- Colocar los escondites en posiciones útiles.
+- Dejar suficiente espacio cerca de la entrada para varios jugadores.
+- Evitar encerrar completamente zonas transitables.
+- Utilizar paredes para crear obstáculos y rutas alternativas.
+- Probar el escenario antes de incluirlo en la versión final.
+
+
+7. CÓMO CREAR UN ESCENARIO NUEVO
+
+Paso 1:
+Crear un archivo de texto nuevo.
+
+Paso 2:
+Diseñar el mapa utilizando únicamente los símbolos:
+
+#
+.
+E
+H
+S
+
+Paso 3:
+Verificar que todas las filas tengan el mismo número de caracteres.
+
+Paso 4:
+Comprobar que exista exactamente una E.
+
+Paso 5:
+Comprobar que exista exactamente una S.
+
+Paso 6:
+Comprobar que exista al menos una H.
+
+Paso 7:
+Verificar que exista un camino transitable entre E y S.
+
+Paso 8:
+Guardar el archivo con extensión .txt.
+
+
+8. CÓMO AGREGAR EL ESCENARIO AL JUEGO
+
+Existen dos formas de agregar un escenario.
+
+
+FORMA 1: AGREGARLO MANUALMENTE
+
+Copiar el archivo dentro de la carpeta:
+
+escenarios/
+
+y nombrarlo siguiendo el formato:
+
+escenarioNUMERO.txt
+
+Ejemplos:
+
+escenario11.txt
+escenario12.txt
+escenario13.txt
+
+El sistema detecta los archivos cuyo nombre siga este formato y los ordena según su número.
+
+
+FORMA 2: IMPORTARLO DESDE EL SERVIDOR
+
+La aplicación del servidor incluye una opción para gestionar escenarios.
+
+Desde esta opción se puede seleccionar un archivo .txt externo.
+
+El programa:
+
+1. Comprueba que el archivo exista.
+2. Comprueba que tenga extensión .txt.
+3. Valida que el escenario cumpla las reglas.
+4. Calcula el siguiente número disponible.
+5. Copia el archivo dentro de la carpeta escenarios.
+6. Actualiza automáticamente la lista de escenarios.
+
+Por ejemplo, si el último archivo existente es:
+
+escenario13.txt
+
+el nuevo escenario será guardado como:
+
+escenario14.txt
+
+
+9. VALIDACIONES AUTOMÁTICAS DEL JUEGO
+
+Cuando el programa carga o importa un escenario verifica automáticamente:
+
+- Que el archivo exista.
+- Que no esté vacío.
+- Que ninguna fila esté vacía.
+- Que todas las filas tengan la misma cantidad de columnas.
+- Que solo existan símbolos válidos.
+- Que exista exactamente una entrada E.
+- Que exista exactamente una salida S.
+- Que exista al menos un escondite H.
+- Que existan al menos 10 casillas transitables.
+- Que exista una ruta desde E hasta S.
+
+Si alguna condición no se cumple, el escenario será rechazado y se mostrará un mensaje indicando el problema encontrado.
+
+
+10. EJEMPLO DE ESCENARIO VÁLIDO
+
+################
+#E.............#
+#..#####.......#
+#......#.......#
+#..H...#.......#
+#......#####...#
+#..............#
+#....#####.....#
+#.............S#
+################
+
+Este escenario es válido porque:
+
+- Todas las filas tienen el mismo tamaño.
+- Existe una sola entrada E.
+- Existe una sola salida S.
+- Existe un escondite H.
+- Tiene suficientes casillas transitables.
+- Existe un camino entre la entrada y la salida.
+- Solo utiliza símbolos permitidos.
+
+
+11. EJEMPLOS DE ERRORES COMUNES
+
+ERROR: DOS ENTRADAS
+
+##########
+#E......E#
+#....H...#
+#.......S#
+##########
+
+El archivo será rechazado porque contiene más de una entrada.
+
+
+ERROR: SIN ESCONDITE
+
+##########
+#E.......#
+#........#
+#.......S#
+##########
+
+El archivo será rechazado porque no contiene ninguna H.
+
+
+ERROR: FILAS DE DIFERENTE TAMAÑO
+
+##########
+#E......#
+#...H....#
+#.......S#
+##########
+
+El archivo será rechazado porque las filas no tienen la misma cantidad de columnas.
+
+
+ERROR: SÍMBOLO NO PERMITIDO
+
+##########
+#E.......#
+#...Z....#
+#...H...S#
+##########
+
+El archivo será rechazado porque Z no es un símbolo válido.
+
+
+ERROR: NO EXISTE CAMINO HACIA LA SALIDA
+
+##########
+#E.......#
+##########
+#...H...S#
+##########
+
+El archivo será rechazado porque no es posible llegar desde E hasta S.
+
+
+12. CONSIDERACIONES IMPORTANTES
+
+Los zombis no deben colocarse manualmente en el archivo.
+
+El servidor genera los zombis automáticamente al iniciar cada escenario.
+
+Los supervivientes tampoco deben colocarse manualmente.
+
+El servidor determina automáticamente las posiciones iniciales de los jugadores cerca de la entrada.
+
+Los francotiradores no ocupan una posición física normal dentro del mapa. Su interacción se realiza mediante una cámara de visión limitada.
+
+El alcance de detección de los zombis aumenta conforme avanzan los escenarios, por lo que no es necesario escribir esa información en el archivo del mapa.
+
+El archivo del escenario solamente describe la estructura física del nivel.
+
+
+13. RESUMEN RÁPIDO
+
+Para que un escenario sea válido debe cumplir:
+
+- Archivo .txt.
+- Todas las filas del mismo tamaño.
+- Solo usar # . E H S.
+- Exactamente una E.
+- Exactamente una S.
+- Al menos una H.
+- Al menos 10 casillas transitables.
+- Debe existir un camino entre E y S.
+- Guardarse en la carpeta escenarios o importarse desde el servidor.
+
+Siguiendo estas reglas se pueden crear nuevos escenarios sin modificar el código fuente de ZombiEscape.
