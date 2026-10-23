@@ -9,10 +9,9 @@ import java.net.SocketException;
 
 public class ThreadCliente extends Thread {
 
-    private volatile boolean ejecutando;
     private final Cliente cliente;
     private final Socket socket;
-    private ObjectInputStream lectorDeObjetos;
+    private volatile boolean ejecutando;
 
     public ThreadCliente(Cliente cliente, Socket socket) {
         this.cliente = cliente;
@@ -23,61 +22,28 @@ public class ThreadCliente extends Thread {
 
     @Override
     public void run() {
-        try {
-            lectorDeObjetos = new ObjectInputStream(socket.getInputStream());
+        try (ObjectInputStream entrada = new ObjectInputStream(socket.getInputStream())) {
+            while (ejecutando && !socket.isClosed()) {
+                Object objeto = entrada.readObject();
 
-            while (ejecutando && cliente.isConectado()) {
-                Object objeto = lectorDeObjetos.readObject();
-
-                if (!(objeto instanceof Mensaje)) {
-                    cliente.notificarError("El servidor envio un objeto desconocido");
-                    continue;
+                if (objeto instanceof Mensaje) {
+                    cliente.procesarMensaje((Mensaje) objeto);
                 }
-
-                Mensaje mensaje = (Mensaje) objeto;
-                cliente.procesar(mensaje);
             }
 
-        } catch (EOFException error) {
+        } catch (EOFException | SocketException error) {
+        } catch (IOException | ClassNotFoundException error) {
             if (ejecutando) {
-                System.out.println("El servidor cerro la conexion");
+                System.err.println("Conexion con el servidor finalizada: " + error.getMessage());
             }
-
-        } catch (SocketException error) {
-            if (ejecutando) {
-                System.out.println("La conexion con el servidor fue cerrada");
-            }
-
-        } catch (ClassNotFoundException error) {
-            if (ejecutando) {
-                cliente.notificarError("El servidor envio una clase desconocida");
-            }
-
-        } catch (IOException error) {
-            if (ejecutando) {
-                cliente.notificarError("Error recibiendo datos del servidor");
-            }
-
         } finally {
-            cerrarLector();
-            cliente.manejarDesconexionRemota();
+            ejecutando = false;
+            cliente.conexionRemotaCerrada();
         }
-    }
-
-    private void cerrarLector() {
-        if (lectorDeObjetos == null) {
-            return;
-        }
-
-        try {
-            lectorDeObjetos.close();
-        } catch (IOException error) {
-        }
-
-        lectorDeObjetos = null;
     }
 
     public void detener() {
         ejecutando = false;
+        interrupt();
     }
 }

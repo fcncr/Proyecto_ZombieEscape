@@ -1,8 +1,8 @@
 package Servidor;
 
 import Models.Direccion;
-import Models.Escenario;
 import Models.EstadoPartida;
+import Models.GestorEscenarios;
 import Models.Jugador;
 import Models.Mensaje;
 import java.io.IOException;
@@ -18,7 +18,8 @@ public class ChatServer {
     public static final String HOST = "localhost";
     public static final int PORT = 8084;
     public static final int MAX_CLIENTES = 10;
-    public static final String RUTA_ESCENARIO = "escenarios/escenario01.txt";
+    public static final int MAX_FRANCOTIRADORES = 2;
+    public static final String DIRECTORIO_ESCENARIOS = "escenarios";
 
     private ServerSocket serverSocket;
     private final List<ThreadServidor> threadServidores;
@@ -51,17 +52,19 @@ public class ChatServer {
         System.out.println("Servidor ZombiEscape iniciado");
         System.out.println("Escuchando en " + HOST + ":" + PORT);
         System.out.println("Maximo de conexiones: " + MAX_CLIENTES);
-        System.out.println("Escenario cargado: " + partida.getEscenario().getNombre());
+        System.out.println("Maximo de francotiradores: " + MAX_FRANCOTIRADORES);
+        System.out.println("Escenarios disponibles: " + partida.getCantidadEscenarios());
+        System.out.println("Primer escenario: " + partida.getEscenario().getNombre());
         System.out.println("Estado de partida: " + partida.getFase());
     }
 
     private void cargarPartida() throws IOException {
         try {
-            Escenario escenario = Escenario.cargar(RUTA_ESCENARIO);
-            partida = new Partida(escenario);
+            GestorEscenarios gestorEscenarios = new GestorEscenarios(DIRECTORIO_ESCENARIOS);
+            partida = new Partida(gestorEscenarios);
 
         } catch (IllegalArgumentException error) {
-            throw new IOException("No se pudo cargar el escenario: " + error.getMessage(), error);
+            throw new IOException("No se pudo preparar la partida: " + error.getMessage(), error);
         }
     }
 
@@ -83,10 +86,11 @@ public class ChatServer {
         }
 
         threadServidores.add(threadServidor);
+
         return true;
     }
 
-    public synchronized int registrarJugador(ThreadServidor threadServidor, String nombre) {
+    public synchronized int registrarJugador(ThreadServidor threadServidor, String nombre, String rol) {
         if (threadServidor == null || !threadServidores.contains(threadServidor)) {
             throw new IllegalArgumentException("La conexion no pertenece al servidor");
         }
@@ -104,6 +108,7 @@ public class ChatServer {
         }
 
         String nombreLimpio = nombre.trim();
+        String rolLimpio = normalizarRol(rol);
 
         for (ThreadServidor conexion : threadServidores) {
             if (conexion.estaRegistrado() && conexion.getNombre().equalsIgnoreCase(nombreLimpio)) {
@@ -111,15 +116,49 @@ public class ChatServer {
             }
         }
 
+        if (Mensaje.ROL_FRANCOTIRADOR.equals(rolLimpio) && getCantidadFrancotiradores() >= MAX_FRANCOTIRADORES) {
+            throw new IllegalArgumentException("Ya existen dos francotiradores");
+        }
+
         int idJugador = siguienteIdJugador;
 
-        partida.agregarJugador(idJugador, nombreLimpio);
+        partida.agregarJugador(idJugador, nombreLimpio, rolLimpio);
+
         siguienteIdJugador++;
 
         threadServidor.setIdJugador(idJugador);
         threadServidor.setNombre(nombreLimpio);
+        threadServidor.setRolJugador(rolLimpio);
+
+        System.out.println("Jugador registrado: ID " + idJugador + " - " + nombreLimpio + " - " + rolLimpio);
 
         return idJugador;
+    }
+
+    private String normalizarRol(String rol) {
+        if (rol == null) {
+            throw new IllegalArgumentException("Debe seleccionar un rol");
+        }
+
+        String valor = rol.trim().toUpperCase();
+
+        if (!Mensaje.ROL_SUPERVIVIENTE.equals(valor) && !Mensaje.ROL_FRANCOTIRADOR.equals(valor)) {
+            throw new IllegalArgumentException("Rol invalido");
+        }
+
+        return valor;
+    }
+
+    public synchronized int getCantidadFrancotiradores() {
+        int cantidad = 0;
+
+        for (ThreadServidor conexion : threadServidores) {
+            if (conexion.estaRegistrado() && Mensaje.ROL_FRANCOTIRADOR.equals(conexion.getRolJugador())) {
+                cantidad++;
+            }
+        }
+
+        return cantidad;
     }
 
     public boolean iniciarPartida() {
@@ -147,14 +186,15 @@ public class ChatServer {
             EstadoPartida estado = partida.crearEstado();
 
             System.out.println("Partida iniciada");
-            System.out.println("Estado: " + estado.getFase());
+            System.out.println("Escenario: " + estado.getNumeroEscenario() + " / " + estado.getCantidadEscenarios());
 
             for (Jugador jugador : estado.getJugadores()) {
-                System.out.println("ID " + jugador.getId() + " - " + jugador.getNombre() + " - Posicion " + jugador.getPosicion());
+                System.out.println("ID " + jugador.getId() + " - " + jugador.getNombre());
             }
 
             enviarEstado();
             iniciarThreadPartida();
+
             return true;
 
         } catch (IllegalStateException error) {
@@ -163,9 +203,43 @@ public class ChatServer {
         }
     }
 
+    public boolean reintentarPartida() {
+        if (partida == null) {
+            System.out.println("No hay una partida cargada");
+            return false;
+        }
+
+        if (!EstadoPartida.DERROTA.equals(partida.getFase())) {
+            System.out.println("Solo se puede reintentar despues de una derrota");
+            return false;
+        }
+
+        if (!partida.reintentarEscenario()) {
+            System.out.println("No se pudo reintentar el escenario");
+            return false;
+        }
+
+        System.out.println("Partida reanudada");
+        System.out.println("Escenario: " + partida.getNumeroEscenario() + " / " + partida.getCantidadEscenarios());
+
+        enviarEstado();
+        reiniciarThreadPartida();
+
+        return true;
+    }
+
     private void iniciarThreadPartida() {
         if (threadPartida != null && threadPartida.isAlive()) {
             return;
+        }
+
+        threadPartida = new ThreadPartida(this, partida);
+        threadPartida.start();
+    }
+
+    private void reiniciarThreadPartida() {
+        if (threadPartida != null) {
+            threadPartida.detener();
         }
 
         threadPartida = new ThreadPartida(this, partida);
@@ -186,13 +260,43 @@ public class ChatServer {
         return movio;
     }
 
+    public boolean moverCamaraJugador(int idJugador, Direccion direccion) {
+        if (partida == null || !partida.estaJugando()) {
+            return false;
+        }
+
+        boolean movio = partida.moverCamara(idJugador, direccion);
+
+        if (movio) {
+            enviarEstado();
+        }
+
+        return movio;
+    }
+
+    public boolean dispararJugador(int idJugador, int fila, int columna) {
+        if (partida == null || !partida.estaJugando()) {
+            return false;
+        }
+
+        boolean disparoRealizado = partida.disparar(idJugador, fila, columna);
+
+        if (disparoRealizado) {
+            enviarEstado();
+        }
+
+        return disparoRealizado;
+    }
+
     public void enviarEstado() {
         if (partida == null) {
             return;
         }
 
         Mensaje mensaje = new Mensaje(Mensaje.ESTADO, 0);
+
         mensaje.setEstado(partida.crearEstado());
+
         broadcast(mensaje);
     }
 
@@ -230,7 +334,7 @@ public class ChatServer {
         System.out.println("Desconectado: " + descripcion);
         System.out.println("Conexiones activas: " + threadServidores.size());
 
-        if (ejecutando && partida != null && partida.estaJugando()) {
+        if (ejecutando && partida != null) {
             enviarEstado();
         }
     }
@@ -252,11 +356,7 @@ public class ChatServer {
     }
 
     public String getFasePartida() {
-        if (partida == null) {
-            return "SIN_PARTIDA";
-        }
-
-        return partida.getFase();
+        return partida == null ? "SIN_PARTIDA" : partida.getFase();
     }
 
     public boolean isEjecutando() {

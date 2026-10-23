@@ -11,22 +11,26 @@ import javax.swing.SwingUtilities;
 
 public class Cliente {
 
-    public static final String IP = "localhost";
+    public static final String HOST = "localhost";
     public static final int PORT = 8084;
-    public static final int MAX_LONGITUD_CHAT = 200;
     public static final int TIMEOUT_CONEXION_MS = 3000;
+    public static final int MAX_LONGITUD_CHAT = 200;
 
     private Socket socket;
+    private ObjectOutputStream salida;
     private ThreadCliente threadCliente;
-    private ObjectOutputStream escritorDeObjetos;
+    private ClienteFrame frame;
     private int idJugador;
     private String nombre;
+    private String rolJugador;
     private EstadoPartida ultimoEstado;
-    private ClienteFrame frame;
     private volatile boolean conectado;
 
     public Cliente() {
         this.idJugador = -1;
+        this.nombre = null;
+        this.rolJugador = null;
+        this.ultimoEstado = null;
         this.conectado = false;
     }
 
@@ -34,44 +38,26 @@ public class Cliente {
         this.frame = frame;
     }
 
-    public synchronized void conectarCliente(String nombre) throws IOException {
+    public synchronized void conectarCliente(String nombre, String rol) throws IOException {
         if (conectado) {
             throw new IllegalStateException("El cliente ya esta conectado");
         }
 
-        validarNombre(nombre);
+        socket = new Socket();
+        socket.connect(new InetSocketAddress(HOST, PORT), TIMEOUT_CONEXION_MS);
 
-        try {
-            socket = new Socket();
-            socket.connect(new InetSocketAddress(IP, PORT), TIMEOUT_CONEXION_MS);
+        salida = new ObjectOutputStream(socket.getOutputStream());
+        salida.flush();
 
-            escritorDeObjetos = new ObjectOutputStream(socket.getOutputStream());
-            escritorDeObjetos.flush();
+        conectado = true;
 
-            conectado = true;
-            idJugador = -1;
-            ultimoEstado = null;
+        threadCliente = new ThreadCliente(this, socket);
+        threadCliente.start();
 
-            threadCliente = new ThreadCliente(this, socket);
-            threadCliente.start();
-
-            solicitarRegistro(nombre);
-
-        } catch (IOException error) {
-            conectado = false;
-            cerrarRecursos();
-            throw new IOException("No se pudo conectar al servidor en " + IP + ":" + PORT, error);
-
-        } catch (RuntimeException error) {
-            conectado = false;
-            cerrarRecursos();
-            throw error;
-        }
+        solicitarRegistro(nombre, rol);
     }
 
-    public synchronized void solicitarRegistro(String nombre) {
-        validarNombre(nombre);
-
+    public synchronized void solicitarRegistro(String nombre, String rol) {
         if (!conectado) {
             throw new IllegalStateException("El cliente no esta conectado");
         }
@@ -80,78 +66,113 @@ public class Cliente {
             throw new IllegalStateException("El jugador ya esta registrado");
         }
 
-        this.nombre = nombre.trim();
+        String nombreLimpio = nombre == null ? "" : nombre.trim();
+        String rolLimpio = normalizarRol(rol);
 
-        if (!enviar(new Mensaje(Mensaje.UNIRSE, this.nombre))) {
-            throw new IllegalStateException("No se pudo solicitar el registro");
-        }
-    }
-
-    private void validarNombre(String nombre) {
-        if (nombre == null || nombre.trim().isEmpty()) {
+        if (nombreLimpio.isEmpty()) {
             throw new IllegalArgumentException("El nombre no puede estar vacio");
         }
+
+        enviar(new Mensaje(Mensaje.UNIRSE, nombreLimpio, rolLimpio));
     }
 
-    public boolean mover(Direccion direccion) {
-        if (direccion == null) {
-            return false;
+    private String normalizarRol(String rol) {
+        if (rol == null) {
+            throw new IllegalArgumentException("Debe seleccionar un rol");
         }
 
-        if (!conectado || idJugador <= 0) {
-            return false;
+        String valor = rol.trim().toUpperCase();
+
+        if (!Mensaje.ROL_SUPERVIVIENTE.equals(valor) && !Mensaje.ROL_FRANCOTIRADOR.equals(valor)) {
+            throw new IllegalArgumentException("Rol invalido");
         }
 
-        if (ultimoEstado == null || !EstadoPartida.JUGANDO.equals(ultimoEstado.getFase())) {
-            return false;
-        }
-
-        return enviar(new Mensaje(Mensaje.MOVER, direccion.name()));
+        return valor;
     }
 
-    public boolean enviarChat(String texto) {
-        if (!conectado || idJugador <= 0) {
+    public synchronized boolean mover(Direccion direccion) {
+        if (!conectado || idJugador <= 0 || direccion == null || ultimoEstado == null) {
             return false;
         }
 
-        if (texto == null) {
+        if (!EstadoPartida.JUGANDO.equals(ultimoEstado.getFase())) {
+            return false;
+        }
+
+        if (Mensaje.ROL_FRANCOTIRADOR.equals(rolJugador)) {
+            return false;
+        }
+
+        enviar(new Mensaje(Mensaje.MOVER, direccion.name()));
+        return true;
+    }
+
+    public synchronized boolean moverCamara(Direccion direccion) {
+        if (!conectado || idJugador <= 0 || direccion == null || ultimoEstado == null) {
+            return false;
+        }
+
+        if (!EstadoPartida.JUGANDO.equals(ultimoEstado.getFase())) {
+            return false;
+        }
+
+        if (!Mensaje.ROL_FRANCOTIRADOR.equals(rolJugador)) {
+            return false;
+        }
+
+        enviar(new Mensaje(Mensaje.MOVER_CAMARA, direccion.name()));
+        return true;
+    }
+
+    public synchronized boolean disparar(int fila, int columna) {
+        if (!conectado || idJugador <= 0 || ultimoEstado == null) {
+            return false;
+        }
+
+        if (!EstadoPartida.JUGANDO.equals(ultimoEstado.getFase())) {
+            return false;
+        }
+
+        if (!Mensaje.ROL_FRANCOTIRADOR.equals(rolJugador)) {
+            return false;
+        }
+
+        enviar(new Mensaje(Mensaje.DISPARAR, Integer.toString(fila), Integer.toString(columna)));
+        return true;
+    }
+
+    public synchronized boolean enviarChat(String texto) {
+        if (!conectado || idJugador <= 0 || texto == null) {
             return false;
         }
 
         String textoLimpio = texto.trim();
 
-        if (textoLimpio.isEmpty()) {
+        if (textoLimpio.isEmpty() || textoLimpio.length() > MAX_LONGITUD_CHAT) {
             return false;
         }
 
-        if (textoLimpio.length() > MAX_LONGITUD_CHAT) {
-            notificarError("El mensaje no puede superar " + MAX_LONGITUD_CHAT + " caracteres");
-            return false;
-        }
-
-        return enviar(new Mensaje(Mensaje.CHAT, textoLimpio));
+        enviar(new Mensaje(Mensaje.CHAT, textoLimpio));
+        return true;
     }
 
-    public synchronized boolean enviar(Mensaje mensaje) {
-        if (!conectado || escritorDeObjetos == null || mensaje == null) {
-            return false;
+    private synchronized void enviar(Mensaje mensaje) {
+        if (!conectado || salida == null || mensaje == null) {
+            return;
         }
 
         try {
-            escritorDeObjetos.reset();
-            escritorDeObjetos.writeObject(mensaje);
-            escritorDeObjetos.flush();
-            return true;
+            salida.writeObject(mensaje);
+            salida.flush();
+            salida.reset();
 
         } catch (IOException error) {
-            notificarError("Se perdio la conexion con el servidor");
-            manejarDesconexionRemota();
-            return false;
+            conexionRemotaCerrada();
         }
     }
 
-    public void procesar(Mensaje mensaje) {
-        if (mensaje == null || mensaje.getTipo() == null) {
+    public void procesarMensaje(Mensaje mensaje) {
+        if (mensaje == null) {
             return;
         }
 
@@ -173,7 +194,6 @@ public class Cliente {
                 break;
 
             default:
-                System.out.println("Mensaje no reconocido por el cliente: " + mensaje);
                 break;
         }
     }
@@ -181,20 +201,21 @@ public class Cliente {
     private void procesarBienvenida(Mensaje mensaje) {
         String[] parametros = mensaje.getParametros();
 
-        if (parametros.length != 1) {
-            notificarError("Respuesta BIENVENIDO invalida");
+        if (parametros.length < 3) {
             return;
         }
 
         try {
             idJugador = Integer.parseInt(parametros[0]);
+            nombre = parametros[1];
+            rolJugador = parametros[2];
 
             if (frame != null) {
-                SwingUtilities.invokeLater(() -> frame.registroExitoso(idJugador, nombre));
+                SwingUtilities.invokeLater(() -> frame.registroExitoso(idJugador, nombre, rolJugador));
             }
 
         } catch (NumberFormatException error) {
-            notificarError("El servidor envio un ID invalido");
+            procesarError(new Mensaje(Mensaje.ERROR, "ID de jugador invalido"));
         }
     }
 
@@ -202,7 +223,6 @@ public class Cliente {
         EstadoPartida estado = mensaje.getEstado();
 
         if (estado == null) {
-            notificarError("El servidor envio un estado de partida vacio");
             return;
         }
 
@@ -216,64 +236,42 @@ public class Cliente {
     private void procesarChat(Mensaje mensaje) {
         String[] parametros = mensaje.getParametros();
 
-        if (parametros.length != 2) {
-            notificarError("El servidor envio un mensaje de chat invalido");
+        if (parametros.length < 2) {
             return;
         }
 
-        String nombreRemitente = parametros[0];
-        String texto = parametros[1];
-
         if (frame != null) {
-            SwingUtilities.invokeLater(() -> frame.agregarMensajeChat(nombreRemitente, texto));
+            SwingUtilities.invokeLater(() -> frame.agregarMensajeChat(parametros[0], parametros[1]));
         }
     }
 
     private void procesarError(Mensaje mensaje) {
         String[] parametros = mensaje.getParametros();
-        String motivo = parametros.length > 0 ? parametros[0] : "Error desconocido";
+        String texto = parametros.length > 0 ? parametros[0] : "Error desconocido";
 
         if (frame != null) {
-            SwingUtilities.invokeLater(() -> frame.mostrarError(motivo, idJugador <= 0));
-        }
-    }
-
-    public void notificarError(String mensaje) {
-        if (frame != null) {
-            SwingUtilities.invokeLater(() -> frame.mostrarError(mensaje, false));
-        }
-    }
-
-    public void manejarDesconexionRemota() {
-        boolean debeNotificar;
-
-        synchronized (this) {
-            debeNotificar = conectado;
-            conectado = false;
-            cerrarRecursos();
-        }
-
-        if (debeNotificar && frame != null) {
-            SwingUtilities.invokeLater(frame::conexionCerrada);
+            SwingUtilities.invokeLater(() -> frame.mostrarError(texto, idJugador <= 0));
         }
     }
 
     public synchronized void desconectar() {
-        conectado = false;
         cerrarRecursos();
     }
 
-    private void cerrarRecursos() {
-        if (threadCliente != null) {
-            threadCliente.detener();
+    public synchronized void conexionRemotaCerrada() {
+        if (!conectado) {
+            return;
         }
 
-        if (escritorDeObjetos != null) {
-            try {
-                escritorDeObjetos.close();
-            } catch (IOException error) {
-            }
+        cerrarRecursos();
+
+        if (frame != null) {
+            SwingUtilities.invokeLater(() -> frame.conexionCerrada());
         }
+    }
+
+    private void cerrarRecursos() {
+        conectado = false;
 
         if (socket != null) {
             try {
@@ -282,13 +280,9 @@ public class Cliente {
             }
         }
 
-        escritorDeObjetos = null;
         socket = null;
-        threadCliente = null;
-    }
-
-    public boolean isConectado() {
-        return conectado;
+        salida = null;
+        ultimoEstado = null;
     }
 
     public int getIdJugador() {
@@ -299,7 +293,15 @@ public class Cliente {
         return nombre;
     }
 
+    public String getRolJugador() {
+        return rolJugador;
+    }
+
     public EstadoPartida getUltimoEstado() {
         return ultimoEstado;
+    }
+
+    public boolean isConectado() {
+        return conectado;
     }
 }

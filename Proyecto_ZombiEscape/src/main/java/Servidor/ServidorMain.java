@@ -1,7 +1,6 @@
 package Servidor;
 
 import java.io.IOException;
-import java.net.BindException;
 import java.util.Scanner;
 
 public class ServidorMain {
@@ -12,41 +11,41 @@ public class ServidorMain {
         try {
             servidor.runServer();
 
-            Runtime.getRuntime().addShutdownHook(new Thread(servidor::cerrar));
+            System.out.println("Comandos disponibles: estado, iniciar, reintentar, salir");
 
             Scanner scanner = new Scanner(System.in);
-            boolean continuar = true;
 
-            mostrarComandos();
+            while (servidor.isEjecutando() && scanner.hasNextLine()) {
+                String comando = scanner.nextLine().trim().toLowerCase();
 
-            while (continuar && scanner.hasNextLine()) {
-                String comando = scanner.nextLine().trim();
-
-                switch (comando.toLowerCase()) {
+                switch (comando) {
                     case "estado":
-                        mostrarEstado(servidor);
+                        System.out.println("Estado de partida: " + servidor.getFasePartida());
+                        System.out.println("Conexiones activas: " + servidor.getCantidadConexiones());
+                        System.out.println("Jugadores registrados: " + servidor.getCantidadRegistrados());
                         break;
 
                     case "iniciar":
                         servidor.iniciarPartida();
                         break;
 
-                    case "salir":
-                        continuar = false;
+                    case "reintentar":
+                        servidor.reintentarPartida();
                         break;
+
+                    case "salir":
+                        servidor.cerrar();
+                        return;
 
                     case "":
                         break;
 
                     default:
                         System.out.println("Comando desconocido");
-                        mostrarComandos();
+                        System.out.println("Comandos disponibles: estado, iniciar, reintentar, salir");
                         break;
                 }
             }
-
-        } catch (BindException error) {
-            System.err.println("No se puede iniciar el servidor porque el puerto " + ChatServer.PORT + " ya esta ocupado");
 
         } catch (IOException error) {
             System.err.println("No se pudo iniciar el servidor: " + error.getMessage());
@@ -54,15 +53,5 @@ public class ServidorMain {
         } finally {
             servidor.cerrar();
         }
-    }
-
-    private static void mostrarEstado(ChatServer servidor) {
-        System.out.println("Conexiones activas: " + servidor.getCantidadConexiones());
-        System.out.println("Jugadores registrados: " + servidor.getCantidadRegistrados());
-        System.out.println("Estado de partida: " + servidor.getFasePartida());
-    }
-
-    private static void mostrarComandos() {
-        System.out.println("Comandos disponibles: estado, iniciar, salir");
     }
 }

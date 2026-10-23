@@ -1,7 +1,9 @@
 package Cliente;
 
 import Models.Direccion;
+import Models.EstadoJugador;
 import Models.EstadoPartida;
+import Models.Francotirador;
 import Models.Jugador;
 import Models.Posicion;
 import Models.Superviviente;
@@ -11,33 +13,57 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 public class PanelMapa extends JPanel {
 
     private static final int TAMANO_CELDA = 32;
 
+    private final Cliente cliente;
     private EstadoPartida estado;
     private int idJugadorLocal;
 
     public PanelMapa() {
+        this(null);
+    }
+
+    public PanelMapa(Cliente cliente) {
+        this.cliente = cliente;
         this.estado = null;
         this.idJugadorLocal = -1;
+
         setBackground(Color.WHITE);
         setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
         setPreferredSize(new Dimension(16 * TAMANO_CELDA, 12 * TAMANO_CELDA));
+
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent evento) {
+                procesarClic(evento);
+            }
+        });
     }
 
     public void setEstado(EstadoPartida estado) {
         this.estado = estado;
 
         if (estado != null && estado.getMapa() != null) {
-            char[][] mapa = estado.getMapa();
-            int ancho = mapa[0].length * TAMANO_CELDA;
-            int alto = mapa.length * TAMANO_CELDA;
-            setPreferredSize(new Dimension(ancho, alto));
+            Jugador jugadorLocal = buscarJugadorLocal();
+
+            if (jugadorLocal instanceof Francotirador) {
+                Francotirador francotirador = (Francotirador) jugadorLocal;
+                int lado = (francotirador.getRadioVista() * 2) + 1;
+                setPreferredSize(new Dimension(lado * TAMANO_CELDA, lado * TAMANO_CELDA));
+
+            } else {
+                char[][] mapa = estado.getMapa();
+                setPreferredSize(new Dimension(mapa[0].length * TAMANO_CELDA, mapa.length * TAMANO_CELDA));
+            }
         }
 
         revalidate();
@@ -58,29 +84,180 @@ public class PanelMapa extends JPanel {
             return;
         }
 
-        char[][] mapa = estado.getMapa();
+        Jugador jugadorLocal = buscarJugadorLocal();
 
-        dibujarMapa(g, mapa);
-        dibujarZombies(g, estado.getZombies());
-        dibujarJugadores(g, estado.getJugadores());
+        if (jugadorLocal instanceof Francotirador && ((Francotirador) jugadorLocal).getCentroVista() != null) {
+            dibujarVistaFrancotirador(g, (Francotirador) jugadorLocal);
 
-        if (estado.isDerrotaEquipo()) {
+        } else {
+            dibujarMapaCompleto(g);
+        }
+
+        if (EstadoPartida.DERROTA.equals(estado.getFase())) {
             dibujarDerrota(g);
         }
+    }
+
+    private void dibujarMapaCompleto(Graphics g) {
+        char[][] mapa = estado.getMapa();
+
+        for (int fila = 0; fila < mapa.length; fila++) {
+            for (int columna = 0; columna < mapa[fila].length; columna++) {
+                dibujarCelda(g, mapa[fila][columna], fila, columna);
+            }
+        }
+
+        for (Zombie zombie : estado.getZombies()) {
+            if (zombie != null && zombie.isVivo() && zombie.getPosicion() != null) {
+                dibujarZombie(g, zombie, zombie.getPosicion().getFila(), zombie.getPosicion().getColumna());
+            }
+        }
+
+        for (Jugador jugador : estado.getJugadores()) {
+            if (jugador == null || jugador.getPosicion() == null || jugador.getEstado() == EstadoJugador.DESCONECTADO) {
+                continue;
+            }
+
+            dibujarJugador(g, jugador, jugador.getPosicion().getFila(), jugador.getPosicion().getColumna());
+        }
+    }
+
+    private void dibujarVistaFrancotirador(Graphics g, Francotirador francotirador) {
+        char[][] mapa = estado.getMapa();
+        int radio = francotirador.getRadioVista();
+        int lado = (radio * 2) + 1;
+
+        Posicion centro = francotirador.getCentroVista();
+        int origenFila = centro.getFila() - radio;
+        int origenColumna = centro.getColumna() - radio;
+
+        for (int filaVisual = 0; filaVisual < lado; filaVisual++) {
+            for (int columnaVisual = 0; columnaVisual < lado; columnaVisual++) {
+                int filaMapa = origenFila + filaVisual;
+                int columnaMapa = origenColumna + columnaVisual;
+
+                if (filaMapa < 0 || filaMapa >= mapa.length || columnaMapa < 0 || columnaMapa >= mapa[0].length) {
+                    dibujarFueraMapa(g, filaVisual, columnaVisual);
+                    continue;
+                }
+
+                dibujarCelda(g, mapa[filaMapa][columnaMapa], filaVisual, columnaVisual);
+            }
+        }
+
+        for (Zombie zombie : estado.getZombies()) {
+            if (zombie == null || !zombie.isVivo() || zombie.getPosicion() == null) {
+                continue;
+            }
+
+            if (!francotirador.puedeVer(zombie.getPosicion())) {
+                continue;
+            }
+
+            int filaVisual = zombie.getPosicion().getFila() - origenFila;
+            int columnaVisual = zombie.getPosicion().getColumna() - origenColumna;
+
+            dibujarZombie(g, zombie, filaVisual, columnaVisual);
+        }
+
+        for (Jugador jugador : estado.getJugadores()) {
+            if (jugador == null || jugador.getPosicion() == null || jugador.getEstado() == EstadoJugador.DESCONECTADO) {
+                continue;
+            }
+
+            if (!francotirador.puedeVer(jugador.getPosicion())) {
+                continue;
+            }
+
+            int filaVisual = jugador.getPosicion().getFila() - origenFila;
+            int columnaVisual = jugador.getPosicion().getColumna() - origenColumna;
+
+            dibujarJugador(g, jugador, filaVisual, columnaVisual);
+        }
+
+        dibujarCentroCamara(g, radio, radio);
+    }
+
+    private void dibujarFueraMapa(Graphics g, int fila, int columna) {
+        int x = columna * TAMANO_CELDA;
+        int y = fila * TAMANO_CELDA;
+
+        g.setColor(Color.BLACK);
+        g.fillRect(x, y, TAMANO_CELDA, TAMANO_CELDA);
+
+        g.setColor(Color.DARK_GRAY);
+        g.drawRect(x, y, TAMANO_CELDA, TAMANO_CELDA);
+    }
+
+    private void dibujarCentroCamara(Graphics g, int fila, int columna) {
+        int x = columna * TAMANO_CELDA;
+        int y = fila * TAMANO_CELDA;
+
+        g.setColor(Color.ORANGE);
+        g.drawRect(x + 2, y + 2, TAMANO_CELDA - 4, TAMANO_CELDA - 4);
+        g.drawRect(x + 3, y + 3, TAMANO_CELDA - 6, TAMANO_CELDA - 6);
+    }
+
+    private void procesarClic(MouseEvent evento) {
+        if (cliente == null || estado == null || !SwingUtilities.isLeftMouseButton(evento)) {
+            return;
+        }
+
+        if (!EstadoPartida.JUGANDO.equals(estado.getFase())) {
+            return;
+        }
+
+        Jugador jugadorLocal = buscarJugadorLocal();
+
+        if (!(jugadorLocal instanceof Francotirador)) {
+            return;
+        }
+
+        Francotirador francotirador = (Francotirador) jugadorLocal;
+
+        if (francotirador.getCentroVista() == null) {
+            return;
+        }
+
+        int columnaVisual = evento.getX() / TAMANO_CELDA;
+        int filaVisual = evento.getY() / TAMANO_CELDA;
+        int radio = francotirador.getRadioVista();
+        int lado = (radio * 2) + 1;
+
+        if (filaVisual < 0 || filaVisual >= lado || columnaVisual < 0 || columnaVisual >= lado) {
+            return;
+        }
+
+        int filaMapa = francotirador.getCentroVista().getFila() - radio + filaVisual;
+        int columnaMapa = francotirador.getCentroVista().getColumna() - radio + columnaVisual;
+
+        char[][] mapa = estado.getMapa();
+
+        if (filaMapa < 0 || filaMapa >= mapa.length || columnaMapa < 0 || columnaMapa >= mapa[0].length) {
+            return;
+        }
+
+        cliente.disparar(filaMapa, columnaMapa);
+    }
+
+    private Jugador buscarJugadorLocal() {
+        if (estado == null) {
+            return null;
+        }
+
+        for (Jugador jugador : estado.getJugadores()) {
+            if (jugador.getId() == idJugadorLocal) {
+                return jugador;
+            }
+        }
+
+        return null;
     }
 
     private void dibujarMensajeEspera(Graphics g) {
         g.setColor(Color.DARK_GRAY);
         g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
         g.drawString("Esperando inicio de partida...", 20, 30);
-    }
-
-    private void dibujarMapa(Graphics g, char[][] mapa) {
-        for (int fila = 0; fila < mapa.length; fila++) {
-            for (int columna = 0; columna < mapa[fila].length; columna++) {
-                dibujarCelda(g, mapa[fila][columna], fila, columna);
-            }
-        }
     }
 
     private void dibujarCelda(Graphics g, char simbolo, int fila, int columna) {
@@ -119,27 +296,16 @@ public class PanelMapa extends JPanel {
 
         String texto = Character.toString(simbolo);
         FontMetrics metricas = g.getFontMetrics();
+
         int textoX = x + (TAMANO_CELDA - metricas.stringWidth(texto)) / 2;
         int textoY = y + ((TAMANO_CELDA - metricas.getHeight()) / 2) + metricas.getAscent();
 
         g.drawString(texto, textoX, textoY);
     }
 
-    private void dibujarZombies(Graphics g, List<Zombie> zombies) {
-        for (Zombie zombie : zombies) {
-            if (zombie == null || zombie.getPosicion() == null || !zombie.isVivo()) {
-                continue;
-            }
-
-            dibujarZombie(g, zombie);
-        }
-    }
-
-    private void dibujarZombie(Graphics g, Zombie zombie) {
-        Posicion posicion = zombie.getPosicion();
-
-        int x = posicion.getColumna() * TAMANO_CELDA;
-        int y = posicion.getFila() * TAMANO_CELDA;
+    private void dibujarZombie(Graphics g, Zombie zombie, int filaVisual, int columnaVisual) {
+        int x = columnaVisual * TAMANO_CELDA;
+        int y = filaVisual * TAMANO_CELDA;
         int margen = 5;
         int tamano = TAMANO_CELDA - (margen * 2);
 
@@ -177,28 +343,24 @@ public class PanelMapa extends JPanel {
         }
     }
 
-    private void dibujarJugadores(Graphics g, List<Jugador> jugadores) {
-        for (Jugador jugador : jugadores) {
-            if (jugador == null || jugador.getPosicion() == null || !jugador.isActivo()) {
-                continue;
-            }
-
-            dibujarJugador(g, jugador);
-        }
-    }
-
-    private void dibujarJugador(Graphics g, Jugador jugador) {
-        Posicion posicion = jugador.getPosicion();
-
-        int x = posicion.getColumna() * TAMANO_CELDA;
-        int y = posicion.getFila() * TAMANO_CELDA;
+    private void dibujarJugador(Graphics g, Jugador jugador, int filaVisual, int columnaVisual) {
+        int x = columnaVisual * TAMANO_CELDA;
+        int y = filaVisual * TAMANO_CELDA;
         int margen = 4;
         int diametro = TAMANO_CELDA - (margen * 2);
 
+        boolean espectador = jugador.getEstado() == EstadoJugador.ESPECTADOR;
+        boolean escapado = jugador.getEstado() == EstadoJugador.ESCAPADO;
         boolean oculto = jugador instanceof Superviviente && ((Superviviente) jugador).isOculto();
 
-        if (oculto) {
+        if (espectador) {
             g.setColor(Color.GRAY);
+
+        } else if (escapado) {
+            g.setColor(new Color(190, 140, 30));
+
+        } else if (oculto) {
+            g.setColor(new Color(90, 90, 90));
 
         } else if (jugador.getId() == idJugadorLocal) {
             g.setColor(Color.BLUE);
@@ -209,10 +371,23 @@ public class PanelMapa extends JPanel {
 
         g.fillOval(x + margen, y + margen, diametro, diametro);
 
-        String texto = oculto ? "H" + jugador.getId() : "J" + jugador.getId();
+        String texto;
+
+        if (espectador) {
+            texto = "X" + jugador.getId();
+
+        } else if (escapado) {
+            texto = "S" + jugador.getId();
+
+        } else if (oculto) {
+            texto = "H" + jugador.getId();
+
+        } else {
+            texto = "J" + jugador.getId();
+        }
 
         g.setColor(Color.WHITE);
-        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
 
         FontMetrics metricas = g.getFontMetrics();
         int textoX = x + (TAMANO_CELDA - metricas.stringWidth(texto)) / 2;
