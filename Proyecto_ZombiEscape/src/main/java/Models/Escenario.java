@@ -66,10 +66,13 @@ public class Escenario implements Serializable {
         }
 
         char[][] celdas = new char[cantidadFilas][cantidadColumnas];
+
         Posicion posicionEntrada = null;
         Posicion posicionSalida = null;
+
         int cantidadEntradas = 0;
         int cantidadSalidas = 0;
+        int cantidadEscondites = 0;
         int cantidadTransitables = 0;
 
         for (int fila = 0; fila < cantidadFilas; fila++) {
@@ -101,6 +104,10 @@ public class Escenario implements Serializable {
                     cantidadSalidas++;
                     posicionSalida = new Posicion(fila, columna);
                 }
+
+                if (simbolo == ESCONDITE) {
+                    cantidadEscondites++;
+                }
             }
         }
 
@@ -110,6 +117,10 @@ public class Escenario implements Serializable {
 
         if (cantidadSalidas != 1) {
             throw new IllegalArgumentException("El escenario debe tener exactamente una salida S");
+        }
+
+        if (cantidadEscondites == 0) {
+            throw new IllegalArgumentException("El escenario debe tener al menos un escondite H");
         }
 
         if (cantidadTransitables < 10) {
@@ -124,7 +135,11 @@ public class Escenario implements Serializable {
     }
 
     private static boolean simboloValido(char simbolo) {
-        return simbolo == PARED || simbolo == CAMINO || simbolo == ENTRADA || simbolo == ESCONDITE || simbolo == SALIDA;
+        return simbolo == PARED
+                || simbolo == CAMINO
+                || simbolo == ENTRADA
+                || simbolo == ESCONDITE
+                || simbolo == SALIDA;
     }
 
     private static boolean existeCamino(char[][] celdas, Posicion inicio, Posicion destino) {
@@ -143,6 +158,7 @@ public class Escenario implements Serializable {
 
             for (Direccion direccion : Direccion.values()) {
                 Posicion siguiente = actual.siguiente(direccion);
+
                 int fila = siguiente.getFila();
                 int columna = siguiente.getColumna();
 

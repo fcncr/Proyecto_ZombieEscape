@@ -837,7 +837,9 @@ public class Partida {
             return 0;
         }
 
-        return DURACION_ESCENARIO_MS - (System.currentTimeMillis() - inicioEscenarioMs);
+        long restante = DURACION_ESCENARIO_MS - (System.currentTimeMillis() - inicioEscenarioMs);
+
+        return Math.max(0, restante);
     }
 
     public synchronized EstadoPartida crearEstado() {
