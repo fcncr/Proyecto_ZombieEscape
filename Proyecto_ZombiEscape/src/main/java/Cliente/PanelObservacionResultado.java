@@ -292,7 +292,7 @@ public class PanelObservacionResultado extends PanelDisenoEscalable {
         dibujarTextoCentrado(g2, "DERROTA DEL EQUIPO", 425, 389);
 
         g2.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 18));
-        dibujarTextoCentrado(g2, "Un superviviente fue detectado.", 425, 431);
+        dibujarTextoCentrado(g2, "Un superviviente fue detectado o se desconecto.", 425, 431);
         dibujarTextoCentrado(g2, "El servidor puede reintentar este escenario.", 425, 461);
 
         g2.setColor(new Color(0xD4, 0xDF, 0xAF));

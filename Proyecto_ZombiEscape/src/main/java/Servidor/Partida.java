@@ -619,21 +619,25 @@ public class Partida {
     }
 
     private boolean todosLosSupervivientesEscaparon() {
-        boolean haySupervivientes = false;
+        boolean haySupervivientesConectados = false;
 
         for (Jugador jugador : jugadores) {
             if (!(jugador instanceof Superviviente)) {
                 continue;
             }
 
-            haySupervivientes = true;
+            if (jugador.getEstado() == EstadoJugador.DESCONECTADO) {
+                continue;
+            }
+
+            haySupervivientesConectados = true;
 
             if (jugador.getEstado() != EstadoJugador.ESCAPADO) {
                 return false;
             }
         }
 
-        return haySupervivientes;
+        return haySupervivientesConectados;
     }
 
     private void verificarFinEscenario() {
@@ -812,14 +816,15 @@ public class Partida {
 
         if (jugador instanceof Superviviente) {
             if (jugador.getEstado() == EstadoJugador.ACTIVO) {
-                jugador.setEstado(EstadoJugador.DESCONECTADO);
                 derrotaEquipo = true;
 
-                System.out.println("Superviviente desconectado durante la partida: " + jugador.getNombre());
-
-            } else if (jugador.getEstado() == EstadoJugador.ESPECTADOR) {
-                jugador.setEstado(EstadoJugador.DESCONECTADO);
+                System.out.println(
+                        "Superviviente desconectado durante la partida: "
+                        + jugador.getNombre()
+                );
             }
+
+            jugador.setEstado(EstadoJugador.DESCONECTADO);
 
         } else {
             jugador.setEstado(EstadoJugador.DESCONECTADO);
