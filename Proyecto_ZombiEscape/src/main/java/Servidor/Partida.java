@@ -68,6 +68,26 @@ public class Partida {
         this.ordenEscape = 0;
         this.derrotaEquipo = false;
     }
+    
+    private int obtenerPrimeraPlazaVisualLibre() {
+        boolean[] usadas = new boolean[MAX_JUGADORES];
+
+        for (Jugador jugador : jugadores) {
+            int plaza = jugador.getPlazaVisual();
+
+            if (plaza >= 0 && plaza < MAX_JUGADORES) {
+                usadas[plaza] = true;
+            }
+        }
+
+        for (int plaza = 0; plaza < MAX_JUGADORES; plaza++) {
+            if (!usadas[plaza]) {
+                return plaza;
+            }
+        }
+
+        throw new IllegalStateException("No hay plazas visuales disponibles");
+    }
 
     public synchronized void agregarJugador(int id, String nombre, String rol) {
         if (!estaEsperando()) {
@@ -78,12 +98,12 @@ public class Partida {
             throw new IllegalStateException("La partida alcanzo el maximo de jugadores");
         }
 
-        for (Jugador jugador : jugadores) {
-            if (jugador.getId() == id) {
+        for (Jugador jugadorExistente : jugadores) {
+            if (jugadorExistente.getId() == id) {
                 throw new IllegalArgumentException("Ya existe un jugador con ese ID");
             }
 
-            if (jugador.getNombre().equalsIgnoreCase(nombre)) {
+            if (jugadorExistente.getNombre().equalsIgnoreCase(nombre)) {
                 throw new IllegalArgumentException("Ya existe un jugador con ese nombre");
             }
         }
@@ -92,13 +112,13 @@ public class Partida {
 
         if (Mensaje.ROL_SUPERVIVIENTE.equals(rol)) {
             jugador = new Superviviente(id, nombre, null);
-
         } else if (Mensaje.ROL_FRANCOTIRADOR.equals(rol)) {
             jugador = new Francotirador(id, nombre);
-
         } else {
             throw new IllegalArgumentException("Rol invalido");
         }
+
+        jugador.setPlazaVisual(obtenerPrimeraPlazaVisualLibre());
 
         jugadores.add(jugador);
         jugadores.sort(Comparator.comparingInt(Jugador::getId));
@@ -229,10 +249,8 @@ public class Partida {
 
             if (original instanceof Superviviente) {
                 nuevo = new Superviviente(original.getId(), original.getNombre(), null);
-
             } else if (original instanceof Francotirador) {
                 nuevo = new Francotirador(original.getId(), original.getNombre());
-
             } else {
                 continue;
             }
@@ -242,6 +260,8 @@ public class Partida {
             if (puntos > 0) {
                 nuevo.sumarPuntos(puntos);
             }
+
+            nuevo.setPlazaVisual(original.getPlazaVisual());
 
             if (original.getEstado() == EstadoJugador.DESCONECTADO) {
                 nuevo.setEstado(EstadoJugador.DESCONECTADO);

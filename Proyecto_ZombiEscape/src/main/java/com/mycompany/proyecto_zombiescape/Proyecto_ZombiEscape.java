@@ -2,12 +2,13 @@ package com.mycompany.proyecto_zombiescape;
 
 import Cliente.ClienteMain;
 import Servidor.ServidorMain;
+import javax.swing.SwingUtilities;
 
 public class Proyecto_ZombiEscape {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            mostrarAyuda();
+            abrirSelectorGrafico();
             return;
         }
 
@@ -29,14 +30,19 @@ public class Proyecto_ZombiEscape {
         }
     }
 
+    private static void abrirSelectorGrafico() {
+        SwingUtilities.invokeLater(() -> {
+            SelectorInicioFrame frame = new SelectorInicioFrame();
+            frame.setVisible(true);
+        });
+    }
+
     private static void mostrarAyuda() {
         System.out.println("=== ZombiEscape ===");
-        System.out.println("Puntos de entrada disponibles:");
-        System.out.println("Servidor: Servidor.ServidorMain");
-        System.out.println("Cliente: Cliente.ClienteMain");
-        System.out.println();
-        System.out.println("Tambien puede ejecutar este launcher con:");
+        System.out.println("Modos disponibles:");
         System.out.println("servidor");
         System.out.println("cliente");
+        System.out.println();
+        System.out.println("Sin argumentos se abre el selector grafico.");
     }
 }

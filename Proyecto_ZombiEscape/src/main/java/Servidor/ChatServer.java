@@ -41,6 +41,7 @@ public class ChatServer {
         }
 
         cargarPartida();
+        siguienteIdJugador = 1;
 
         serverSocket = new ServerSocket();
         serverSocket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), PORT));
@@ -357,6 +358,38 @@ public class ChatServer {
 
     public String getFasePartida() {
         return partida == null ? "SIN_PARTIDA" : partida.getFase();
+    }
+    
+    public synchronized EstadoPartida getEstadoActual() {
+        if (partida == null) {
+            return null;
+        }
+
+        return partida.crearEstado();
+    }
+
+    public synchronized int getCantidadEscenarios() {
+        if (partida == null) {
+            return 0;
+        }
+
+        return partida.getCantidadEscenarios();
+    }
+
+    public synchronized int getNumeroEscenarioActual() {
+        if (partida == null) {
+            return 0;
+        }
+
+        return partida.getNumeroEscenario();
+    }
+
+    public synchronized String getNombreEscenarioActual() {
+        if (partida == null || partida.getEscenario() == null) {
+            return "";
+        }
+
+        return partida.getEscenario().getNombre();
     }
 
     public boolean isEjecutando() {

@@ -11,6 +11,7 @@ public class Jugador implements Serializable {
     private Posicion posicion;
     private int puntos;
     private EstadoJugador estado;
+    private int plazaVisual;
 
     public Jugador(int id, String nombre, Posicion posicion) {
         if (id <= 0) {
@@ -26,6 +27,7 @@ public class Jugador implements Serializable {
         this.posicion = posicion;
         this.puntos = 0;
         this.estado = EstadoJugador.ACTIVO;
+        this.plazaVisual = -1;
     }
 
     public int getId() {
@@ -70,6 +72,18 @@ public class Jugador implements Serializable {
         }
 
         this.estado = estado;
+    }
+
+    public int getPlazaVisual() {
+        return plazaVisual;
+    }
+
+    public void setPlazaVisual(int plazaVisual) {
+        if (plazaVisual < -1 || plazaVisual > 9) {
+            throw new IllegalArgumentException("La plaza visual debe estar entre 0 y 9");
+        }
+
+        this.plazaVisual = plazaVisual;
     }
 
     public boolean isActivo() {

@@ -1,6 +1,9 @@
 package Models;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Zombie implements Serializable {
 
@@ -51,16 +54,40 @@ public class Zombie implements Serializable {
 
         ultimoMovimientoMs = ahoraMs;
 
-        for (int intento = 0; intento < Direccion.values().length; intento++) {
-            Posicion destino = posicion.siguiente(direccion);
+        Posicion destino = posicion.siguiente(direccion);
+
+        if (escenario.esTransitable(destino)) {
+            posicion = destino;
+            return;
+        }
+
+        Direccion nuevaDireccion = elegirDireccionTransitable(escenario);
+
+        if (nuevaDireccion == null) {
+            return;
+        }
+
+        direccion = nuevaDireccion;
+        posicion = posicion.siguiente(direccion);
+    }
+
+    private Direccion elegirDireccionTransitable(Escenario escenario) {
+        List<Direccion> disponibles = new ArrayList<>();
+
+        for (Direccion posible : Direccion.values()) {
+            Posicion destino = posicion.siguiente(posible);
 
             if (escenario.esTransitable(destino)) {
-                posicion = destino;
-                return;
+                disponibles.add(posible);
             }
-
-            girar();
         }
+
+        if (disponibles.isEmpty()) {
+            return null;
+        }
+
+        int indice = ThreadLocalRandom.current().nextInt(disponibles.size());
+        return disponibles.get(indice);
     }
 
     public boolean detecta(Superviviente superviviente, Escenario escenario) {

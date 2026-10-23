@@ -3,6 +3,7 @@ package Models;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -22,7 +23,7 @@ public class GestorEscenarios {
             throw new IllegalArgumentException("La ruta del directorio no puede estar vacia");
         }
 
-        this.directorio = Path.of(rutaDirectorio);
+        this.directorio = Path.of(rutaDirectorio).toAbsolutePath().normalize();
         this.archivos = new ArrayList<>();
 
         actualizarLista();
@@ -40,13 +41,64 @@ public class GestorEscenarios {
         }
     }
 
+    public Path importar(Path archivoOrigen) throws IOException {
+        if (archivoOrigen == null) {
+            throw new IllegalArgumentException("Debe seleccionar un archivo");
+        }
+
+        Path origen = archivoOrigen.toAbsolutePath().normalize();
+
+        if (!Files.isRegularFile(origen)) {
+            throw new IOException("El archivo seleccionado no existe");
+        }
+
+        String nombre = origen.getFileName().toString().toLowerCase();
+
+        if (!nombre.endsWith(".txt")) {
+            throw new IllegalArgumentException("El escenario debe ser un archivo .txt");
+        }
+
+        try {
+            Escenario.cargar(origen.toString());
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("Escenario invalido: " + error.getMessage(), error);
+        }
+
+        actualizarLista();
+
+        int numero = obtenerSiguienteNumero();
+        Path destino = directorio.resolve("escenario" + numero + ".txt");
+
+        Files.copy(origen, destino, StandardCopyOption.COPY_ATTRIBUTES);
+
+        try {
+            Escenario.cargar(destino.toString());
+        } catch (IOException | IllegalArgumentException error) {
+            Files.deleteIfExists(destino);
+            throw error;
+        }
+
+        actualizarLista();
+
+        return destino;
+    }
+
+    private int obtenerSiguienteNumero() {
+        int mayor = 0;
+
+        for (Path archivo : archivos) {
+            mayor = Math.max(mayor, obtenerNumeroEscenario(archivo));
+        }
+
+        return mayor + 1;
+    }
+
     private boolean esArchivoEscenario(Path archivo) {
         if (archivo == null || archivo.getFileName() == null) {
             return false;
         }
 
-        Matcher matcher = PATRON_ESCENARIO.matcher(archivo.getFileName().toString());
-        return matcher.matches();
+        return PATRON_ESCENARIO.matcher(archivo.getFileName().toString()).matches();
     }
 
     private int obtenerNumeroEscenario(Path archivo) {
@@ -72,8 +124,7 @@ public class GestorEscenarios {
             throw new IndexOutOfBoundsException("Indice de escenario invalido: " + indice);
         }
 
-        Path archivo = archivos.get(indice);
-        return Escenario.cargar(archivo.toString());
+        return Escenario.cargar(archivos.get(indice).toString());
     }
 
     public List<Path> listarEscenarios() {

@@ -131,24 +131,16 @@ public class EstadoPartida implements Serializable {
                 }
 
                 nuevo = superviviente;
-
             } else if (jugador instanceof Francotirador) {
                 Francotirador original = (Francotirador) jugador;
-
-                nuevo = new Francotirador(
-                        original.getId(),
-                        original.getNombre(),
-                        original.getBalas(),
-                        original.getCentroVista(),
-                        original.getRadioVista()
-                );
-
+                nuevo = new Francotirador(original.getId(), original.getNombre(), original.getBalas(), original.getCentroVista(), original.getRadioVista());
             } else {
                 nuevo = new Jugador(jugador.getId(), jugador.getNombre(), jugador.getPosicion());
             }
 
             nuevo.sumarPuntos(jugador.getPuntos());
             nuevo.setEstado(jugador.getEstado());
+            nuevo.setPlazaVisual(jugador.getPlazaVisual());
 
             copia.add(nuevo);
         }

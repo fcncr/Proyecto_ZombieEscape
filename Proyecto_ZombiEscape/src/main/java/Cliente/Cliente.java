@@ -8,6 +8,8 @@ import java.io.ObjectOutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import javax.swing.SwingUtilities;
+import Models.Francotirador;
+import Models.Jugador;
 
 public class Cliente {
 
@@ -121,6 +123,38 @@ public class Cliente {
         }
 
         enviar(new Mensaje(Mensaje.MOVER_CAMARA, direccion.name()));
+        return true;
+    }
+    
+    public synchronized boolean dispararMira() {
+        if (!conectado || idJugador <= 0 || ultimoEstado == null) {
+            return false;
+        }
+
+        if (!EstadoPartida.JUGANDO.equals(ultimoEstado.getFase())) {
+            return false;
+        }
+
+        if (!Mensaje.ROL_FRANCOTIRADOR.equals(rolJugador)) {
+            return false;
+        }
+
+        Jugador jugador = ultimoEstado.getJugadorPorId(idJugador);
+
+        if (!(jugador instanceof Francotirador)) {
+            return false;
+        }
+
+        Francotirador francotirador = (Francotirador) jugador;
+
+        if (francotirador.getCentroVista() == null || francotirador.getBalas() <= 0) {
+            return false;
+        }
+
+        int fila = francotirador.getCentroVista().getFila();
+        int columna = francotirador.getCentroVista().getColumna();
+
+        enviar(new Mensaje(Mensaje.DISPARAR, Integer.toString(fila), Integer.toString(columna)));
         return true;
     }
 

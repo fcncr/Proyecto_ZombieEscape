@@ -28,6 +28,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import java.awt.CardLayout;
 
 public class ClienteFrame extends JFrame {
 
@@ -52,10 +53,35 @@ public class ClienteFrame extends JFrame {
     private final JButton botonEnviarChat;
     private final KeyEventDispatcher dispatcherMovimiento;
     private boolean preservarErrorAlCerrar;
-
+    private static final String VISTA_JUEGO_SUPERVIVIENTE = "JUEGO_SUPERVIVIENTE";
+    private static final String VISTA_CONEXION = "CONEXION";
+    private static final String VISTA_JUEGO_ACTUAL = "JUEGO_ACTUAL";
+    private static final String VISTA_VICTORIA_FINAL = "VICTORIA_FINAL";
+    private final CardLayout gestorVistas;
+    private final JPanel panelVistas;
+    private final PanelConexion panelConexion;
+    private static final String VISTA_SALA_ESPERA = "SALA_ESPERA";
+    private final PanelSalaEspera panelSalaEspera;
+    private final PanelPartidaSuperviviente panelPartidaSuperviviente;
+    private static final String VISTA_JUEGO_FRANCOTIRADOR = "JUEGO_FRANCOTIRADOR";
+    private final PanelPartidaFrancotirador panelPartidaFrancotirador;
+    private static final String VISTA_OBSERVACION_RESULTADO = "OBSERVACION_RESULTADO";
+    private final PanelObservacionResultado panelObservacionResultado;
+    private final PanelVictoriaFinal panelVictoriaFinal;
+    
     public ClienteFrame() {
         cliente = new Cliente();
         cliente.setFrame(this);
+
+        gestorVistas = new CardLayout();
+        panelVistas = new JPanel(gestorVistas);
+
+        panelConexion = new PanelConexion(this::conectarDesdeNuevaInterfaz);
+        panelSalaEspera = new PanelSalaEspera(this::enviarChatDesdeSala);
+        panelPartidaSuperviviente = new PanelPartidaSuperviviente(cliente, this::enviarChatDesdePartida);
+        panelPartidaFrancotirador = new PanelPartidaFrancotirador(cliente, this::enviarChatDesdePartida);
+        panelObservacionResultado = new PanelObservacionResultado(cliente, this::enviarChatDesdePartida);
+        panelVictoriaFinal = new PanelVictoriaFinal(this::enviarChatDesdePartida);
 
         campoNombre = new JTextField(15);
         comboRol = new JComboBox<>(new String[]{Mensaje.ROL_SUPERVIVIENTE, Mensaje.ROL_FRANCOTIRADOR});
@@ -94,7 +120,7 @@ public class ClienteFrame extends JFrame {
         setResizable(true);
     }
 
-    private void construirInterfaz() {
+    private JPanel construirInterfazJuegoActual() {
         JPanel panelSuperior = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         panelSuperior.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
@@ -105,7 +131,6 @@ public class ClienteFrame extends JFrame {
         panelSuperior.add(botonConectar);
 
         JPanel panelInformacion = new JPanel(new GridLayout(6, 2, 10, 5));
-
         panelInformacion.setBorder(BorderFactory.createEmptyBorder(5, 15, 10, 15));
 
         etiquetaJugador.setFont(etiquetaJugador.getFont().deriveFont(Font.BOLD, 15f));
@@ -129,22 +154,41 @@ public class ClienteFrame extends JFrame {
         panelInformacion.add(new JLabel(""));
 
         JScrollPane scrollMapa = new JScrollPane(panelMapa);
-
         scrollMapa.setBorder(BorderFactory.createTitledBorder("Escenario"));
 
         JPanel panelJuego = new JPanel(new BorderLayout());
-
         panelJuego.add(panelInformacion, BorderLayout.NORTH);
         panelJuego.add(scrollMapa, BorderLayout.CENTER);
 
         JPanel panelCentral = new JPanel(new BorderLayout(10, 0));
-
         panelCentral.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
         panelCentral.add(panelJuego, BorderLayout.CENTER);
         panelCentral.add(construirPanelLateral(), BorderLayout.EAST);
 
-        add(panelSuperior, BorderLayout.NORTH);
-        add(panelCentral, BorderLayout.CENTER);
+        JPanel panelPrincipal = new JPanel(new BorderLayout());
+        panelPrincipal.add(panelSuperior, BorderLayout.NORTH);
+        panelPrincipal.add(panelCentral, BorderLayout.CENTER);
+
+        return panelPrincipal;
+    }
+    
+    private void conectarDesdeNuevaInterfaz(String nombre, String rol) {
+        panelConexion.setConectando(true);
+
+        Thread conexion = new Thread(() -> {
+            try {
+                if (cliente.isConectado()) {
+                    cliente.solicitarRegistro(nombre, rol);
+                } else {
+                    cliente.conectarCliente(nombre, rol);
+                }
+            } catch (IOException | IllegalArgumentException | IllegalStateException error) {
+                SwingUtilities.invokeLater(() -> panelConexion.mostrarError(error.getMessage()));
+            }
+        });
+
+        conexion.setName("ConexionCliente");
+        conexion.start();
     }
 
     private JPanel construirPanelLateral() {
@@ -173,6 +217,37 @@ public class ClienteFrame extends JFrame {
         panelRanking.add(scrollRanking, BorderLayout.CENTER);
 
         return panelRanking;
+    }
+    
+    private void enviarChatDesdeSala(String texto) {
+        cliente.enviarChat(texto);
+    }
+    
+    private void enviarChatDesdePartida(String texto) {
+        if (cliente.enviarChat(texto)) {
+            return;
+        }
+
+        panelPartidaSuperviviente.agregarMensaje("Sistema", "No se pudo enviar el mensaje.");
+        panelPartidaFrancotirador.agregarMensaje("Sistema", "No se pudo enviar el mensaje.");
+    }
+    
+    private void construirInterfaz() {
+        panelVistas.add(panelConexion, VISTA_CONEXION);
+        panelVistas.add(panelSalaEspera, VISTA_SALA_ESPERA);
+        panelVistas.add(panelPartidaSuperviviente, VISTA_JUEGO_SUPERVIVIENTE);
+        panelVistas.add(panelPartidaFrancotirador, VISTA_JUEGO_FRANCOTIRADOR);
+        panelVistas.add(panelObservacionResultado, VISTA_OBSERVACION_RESULTADO);
+        panelVistas.add(panelVictoriaFinal, VISTA_VICTORIA_FINAL);
+        panelVistas.add(construirInterfazJuegoActual(), VISTA_JUEGO_ACTUAL);
+
+        panelVistas.setPreferredSize(new Dimension(1024, 640));
+
+        setContentPane(panelVistas);
+        pack();
+        setLocationRelativeTo(null);
+
+        gestorVistas.show(panelVistas, VISTA_CONEXION);
     }
 
     private JPanel construirPanelChat() {
@@ -215,6 +290,21 @@ public class ClienteFrame extends JFrame {
 
     private boolean procesarTeclaMovimiento(KeyEvent evento) {
         if (evento.getID() != KeyEvent.KEY_PRESSED || !isActive()) {
+            return false;
+        }
+
+        if (Mensaje.ROL_FRANCOTIRADOR.equals(cliente.getRolJugador()) && evento.getKeyCode() == KeyEvent.VK_ENTER) {
+            if (KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner() instanceof JTextField) {
+                return false;
+            }
+
+            boolean enviado = cliente.dispararMira();
+
+            if (enviado) {
+                evento.consume();
+                return true;
+            }
+
             return false;
         }
 
@@ -330,8 +420,7 @@ public class ClienteFrame extends JFrame {
         if (Mensaje.ROL_FRANCOTIRADOR.equals(rol)) {
             etiquetaPosicion.setText("Camara: esperando inicio");
             etiquetaOcultamiento.setText("Balas: 10");
-            etiquetaControles.setText("Flechas: camara | Clic izquierdo: disparar");
-
+            etiquetaControles.setText("Flechas: camara | Enter: disparar");
         } else {
             etiquetaPosicion.setText("Posicion: sin asignar");
             etiquetaOcultamiento.setText("Estado jugador: ACTIVO");
@@ -346,19 +435,74 @@ public class ClienteFrame extends JFrame {
         botonEnviarChat.setEnabled(true);
 
         panelMapa.setIdJugadorLocal(idJugador);
+        panelSalaEspera.setIdJugadorLocal(idJugador);
+        panelPartidaSuperviviente.setIdJugadorLocal(idJugador);
+        panelPartidaFrancotirador.setIdJugadorLocal(idJugador);
+        panelObservacionResultado.setIdJugadorLocal(idJugador);
+
+        gestorVistas.show(panelVistas, VISTA_SALA_ESPERA);
     }
 
     public void actualizarEstado(EstadoPartida estado) {
+        if (estado == null) {
+            return;
+        }
+
+        int idJugador = cliente.getIdJugador();
+        Jugador jugadorLocal = estado.getJugadorPorId(idJugador);
+
+        if (EstadoPartida.ESPERANDO.equals(estado.getFase())) {
+            panelSalaEspera.setIdJugadorLocal(idJugador);
+            panelSalaEspera.actualizarEstado(estado);
+            gestorVistas.show(panelVistas, VISTA_SALA_ESPERA);
+            return;
+        }
+
+        if (EstadoPartida.VICTORIA.equals(estado.getFase())) {
+            panelVictoriaFinal.setIdJugadorLocal(idJugador);
+            panelVictoriaFinal.actualizarEstado(estado);
+            gestorVistas.show(panelVistas, VISTA_VICTORIA_FINAL);
+            return;
+        }
+
+        if (EstadoPartida.DERROTA.equals(estado.getFase())) {
+            panelObservacionResultado.setIdJugadorLocal(idJugador);
+            panelObservacionResultado.actualizarEstado(estado);
+            gestorVistas.show(panelVistas, VISTA_OBSERVACION_RESULTADO);
+            return;
+        }
+
+        if (EstadoPartida.JUGANDO.equals(estado.getFase()) && jugadorLocal != null && jugadorLocal.getEstado() == EstadoJugador.ESPECTADOR) {
+            panelObservacionResultado.setIdJugadorLocal(idJugador);
+            panelObservacionResultado.actualizarEstado(estado);
+            gestorVistas.show(panelVistas, VISTA_OBSERVACION_RESULTADO);
+            return;
+        }
+
+        if (EstadoPartida.JUGANDO.equals(estado.getFase()) && jugadorLocal instanceof Superviviente) {
+            panelPartidaSuperviviente.setIdJugadorLocal(idJugador);
+            panelPartidaSuperviviente.actualizarEstado(estado);
+            gestorVistas.show(panelVistas, VISTA_JUEGO_SUPERVIVIENTE);
+            return;
+        }
+
+        if (EstadoPartida.JUGANDO.equals(estado.getFase()) && jugadorLocal instanceof Francotirador) {
+            panelPartidaFrancotirador.setIdJugadorLocal(idJugador);
+            panelPartidaFrancotirador.actualizarEstado(estado);
+            gestorVistas.show(panelVistas, VISTA_JUEGO_FRANCOTIRADOR);
+            return;
+        }
+
+        gestorVistas.show(panelVistas, VISTA_JUEGO_ACTUAL);
+
         etiquetaPartida.setText("Partida: " + estado.getFase());
         etiquetaEscenario.setText("Escenario: " + estado.getNumeroEscenario() + " / " + estado.getCantidadEscenarios());
 
         actualizarTiempo(estado);
         actualizarRanking(estado);
 
-        panelMapa.setIdJugadorLocal(cliente.getIdJugador());
+        panelMapa.setIdJugadorLocal(idJugador);
         panelMapa.setEstado(estado);
-
-        Jugador jugadorLocal = estado.getJugadorPorId(cliente.getIdJugador());
 
         if (jugadorLocal == null) {
             etiquetaPosicion.setText("Posicion: sin asignar");
@@ -370,30 +514,14 @@ public class ClienteFrame extends JFrame {
 
         if (jugadorLocal instanceof Francotirador) {
             Francotirador francotirador = (Francotirador) jugadorLocal;
-
             etiquetaPosicion.setText("Camara: " + francotirador.getCentroVista());
             etiquetaOcultamiento.setText("Balas: " + francotirador.getBalas());
-
         } else if (jugadorLocal.getPosicion() == null) {
             etiquetaPosicion.setText("Posicion: sin asignar");
             actualizarEstadoJugador(jugadorLocal);
-
         } else {
             etiquetaPosicion.setText("Posicion: " + jugadorLocal.getPosicion());
             actualizarEstadoJugador(jugadorLocal);
-        }
-
-        if (EstadoPartida.DERROTA.equals(estado.getFase())) {
-            etiquetaEstado.setText("DERROTA DEL EQUIPO");
-
-        } else if (EstadoPartida.VICTORIA.equals(estado.getFase())) {
-            etiquetaEstado.setText("VICTORIA");
-
-        } else if (estado.isDerrotaEquipo()) {
-            etiquetaEstado.setText("Alerta: un superviviente murio o se desconecto. La partida continua.");
-
-        } else {
-            etiquetaEstado.setText("Estado sincronizado con el servidor");
         }
     }
 
@@ -471,25 +599,26 @@ public class ClienteFrame extends JFrame {
     }
 
     public void agregarMensajeChat(String nombreRemitente, String texto) {
+        panelSalaEspera.agregarMensaje(nombreRemitente, texto);
+        panelPartidaSuperviviente.agregarMensaje(nombreRemitente, texto);
+        panelPartidaFrancotirador.agregarMensaje(nombreRemitente, texto);
+        panelObservacionResultado.agregarMensaje(nombreRemitente, texto);
+        panelVictoriaFinal.agregarMensaje(nombreRemitente, texto);
+
         areaChat.append(nombreRemitente + ": " + texto + System.lineSeparator());
         areaChat.setCaretPosition(areaChat.getDocument().getLength());
     }
-
     public void mostrarError(String mensaje, boolean permitirNuevoRegistro) {
-        etiquetaEstado.setText("Error: " + mensaje);
-
         if (permitirNuevoRegistro && cliente.getIdJugador() <= 0) {
             preservarErrorAlCerrar = true;
+
+            gestorVistas.show(panelVistas, VISTA_CONEXION);
+            panelConexion.mostrarError(mensaje);
+
+            return;
         }
 
-        if (permitirNuevoRegistro) {
-            campoNombre.setEnabled(true);
-            comboRol.setEnabled(true);
-            botonConectar.setEnabled(true);
-            botonConectar.setText("Conectar");
-            campoNombre.requestFocusInWindow();
-            campoNombre.selectAll();
-        }
+        etiquetaEstado.setText("Error: " + mensaje);
     }
 
     public void conexionCerrada() {
